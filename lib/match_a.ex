@@ -24,32 +24,45 @@ defimpl Match, for: List do
       [%Variable{}, %Rest{binding: %Variable{name: :thing}}]
 
   """
+  # def a(x, p), do: p |> IO.inspect(limit: :infinity, label: "")
+  # raise("Invalid Match Syntax")
   def a([], []), do: raise("Invalid Match Syntax")
-  def a([], {:case, [:empty]}), do: {:match, %{}}
+  def a([], {:case, [:empty], continuation}), do: {:match, %{}, continuation}
 
-  def a(_, {:case, [:empty]}), do: raise("no matches!")
-  def a(_, {:case, [:empty | _]}), do: raise("Invalid Match Syntax")
+  def a(_, {:case, [:empty], _}), do: raise("no matches!")
+  def a(_, {:case, [:empty | _], _}), do: raise("Invalid Match Syntax")
 
   # The one element is special because it has two things in it really.
-  def a([_], {:case, [:wildcard, {:rest, :wildcard}]}), do: {:match, %{}}
-  def a([_], {:case, [:wildcard, {:rest, {:variable, name}}]}), do: {:match, %{name => []}}
-
-  def a([element], {:case, [{:variable, first}, {:rest, :wildcard}]}) do
-    {:match, %{first => element}}
+  def a([_], {:case, [:wildcard, {:rest, :wildcard}], continuation}) do
+    {:match, %{}, continuation}
   end
 
-  def a([element], {:case, [{:variable, first}, {:rest, {:variable, name}}]}) do
-    {:match, %{first => element, name => []}}
+  def a([_], {:case, [:wildcard, {:rest, {:variable, name}}], continuation}) do
+    {:match, %{name => []}, continuation}
   end
 
-  def a([_], {:case, [_, _]}), do: raise("Invalid Match Syntax")
+  def a([element], {:case, [variable: first, rest: :wildcard], continuation}) do
+    {:match, %{first => element}, continuation}
+  end
+
+  def a([element], {:case, [variable: first, rest: {:variable, name}], continuation}) do
+    {:match, %{first => element, name => []}, continuation}
+  end
+
+  def a([_], {:case, [_, _], _}), do: raise("Invalid Match Syntax")
 
   # lol at pattern matching to implement pattern matching.
-  def a([element], {:case, [{:variable, name}]}), do: {:match, %{name => element}}
-  def a([_element], {:case, [:wildcard]}), do: {:match, %{}}
+  def a([element], {:case, [{:variable, name}], continuation}) do
+    {:match, %{name => element}, continuation}
+  end
+
+  def a([_element], {:case, [:wildcard], continuation}) do
+    {:match, %{}, continuation}
+  end
+
   # Rest doesn't makes sense for the first element in a one element list.
-  def a([_element], {:case, [{:rest, _}]}), do: raise("Invalid Match Syntax")
-  def a([_element], {:case, [_]}), do: raise("Invalid Match Syntax")
+  def a([_element], {:case, [{:rest, _}], _}), do: raise("Invalid Match Syntax")
+  def a([_element], {:case, [_], _}), do: raise("Invalid Match Syntax")
 
   def a(list, {:case, pattern, continuation}) when is_list(pattern) do
     # A list could have anything in it so we need a unique value to be able to determine
@@ -101,16 +114,7 @@ defmodule MatchA do
 
   @doc """
   """
-  def match(pattern_cases, data) do
-    do_the_match(pattern_cases, data, false)
-  end
-
-  # match/2 is really `bindings/2` and this is like do
-  def match_and_continue(pattern_cases, data) do
-    do_the_match(pattern_cases, data, true)
-  end
-
-  defp do_the_match({:pattern_cases, cases}, data, continue?) do
+  def match({:pattern_cases, cases}, data) do
     Enum.reduce_while(cases, :no_match, fn pattern, acc ->
       # I guess each thing needs to be able to define the way it can be matched. So lists,
       # tuples all that. That means we need to know BOTH what are we matching on AND with what
@@ -122,15 +126,8 @@ defmodule MatchA do
       end
     end)
     |> case do
-      {:match, bindings, continuation} ->
-        if continue? do
-          continuation.(bindings)
-        else
-          bindings
-        end
-
-      :no_match ->
-        raise "no matches!"
+      {:match, bindings, continuation} -> continuation.(bindings)
+      :no_match -> raise "no matches!"
     end
   end
 

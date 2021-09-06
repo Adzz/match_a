@@ -1,4 +1,4 @@
-# MatchA
+# MatchA 🍵
 
 **TODO: Add description**
 
