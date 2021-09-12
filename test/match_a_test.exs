@@ -44,13 +44,13 @@ defmodule MatchATest do
       assert MatchA.match(pattern, [1, 2]) == %{head: 1}
     end
 
-    test "[head | rest] = [1]" do
+    test "[head, rest] = [1]" do
       pattern =
         pattern_cases([
-          pattern_case([variable(:head), rest()])
+          pattern_case([variable(:head), variable(:rest)])
         ])
 
-      assert MatchA.match(pattern, [1]) == %{head: 1}
+      assert_raise(MatchA.MatchError, "no matches!",fn -> MatchA.match(pattern, [1]) == %{head: 1} end)
     end
 
     test "..." do
