@@ -140,6 +140,7 @@ defmodule MatchA do
   end
 
   @doc """
+  is a case statement with pattern matching.
   """
   def case({:case_clauses, clauses}, data) when is_list(clauses) do
     Enum.reduce_while(clauses, :no_match, fn {:case_clause, pattern, continuation}, acc ->
@@ -169,12 +170,10 @@ defmodule MatchA do
   # That would mean we could undo the pattern match
   def case_clauses(cases), do: {:case_clauses, cases}
   def case_clause(pattern, continuation), do: {:case_clause, pattern, continuation}
-  # This would be like the individual pattern that would / could appear in the case.
-  # A pattern on its own is really just bindings.
-  def pattern(pattern), do: {:pattern, pattern}
   def variable(name), do: {:variable, name}
   # a binding can be wildcard() or variable()
   def rest(binding \\ wildcard()), do: {:rest, binding}
   def empty(), do: :empty
   def wildcard(), do: :wildcard
+  def list(items), do: {:list, items}
 end

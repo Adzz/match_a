@@ -87,3 +87,129 @@ Pattern.evaluate(%Last{}, [1,2])
 # apply to more than one concrete data type. If so then good if not it's suspicious.
 Pattern.evaluate(%Last{}, %{a: 1, b: 2})
 ```
+
+We want to be able to change a fn call to the pattern match
+and then change it back.
+
+is it expanding a macro?
+
+Basically I want to be able to replace a pattern match with a fn and vice versa
+It would have to be the same fn / pattern match pair I guess
+
+Really does this just amount to jumping to / from the call site?
+Though that always takes me away from what I'm reading and loses context.
+
+You turn it into edit mode - which is the fn call then you can turn it back
+to pattern match - basically inline the fn
+
+PipeLine.current_step()
+
+%{}
+
+def current_step_match_(pipeline) do
+  # But yea can't return patterns from fns right.
+  # But you can return AST.
+
+  quote do
+    %PipeLine{steps: {[current |_], _}} = pipeline
+  end
+end
+
+### Aside - is PM declarative
+
+Yes in the sense that how the data is accessed is hidden from you. But no in the sense that the data that you get is explicitly declared. so i guess it is really.
+
+
+### Possible talk outline
+
+Match made in heaven
+The Pipeline problem (lol)
+What even _is_ pattern matching?
+  - bindings
+  - control flow (is it though? or does that come from functions like case that just leverage PM? Maybe depends if you include raising errors as control flow which maybe it isn't.)
+  - declarative, explicit, revealing
+  - wait PM is not declarative because it isn't high level and it specifies explicit steps. But core.match is declarative - so it can be made to be...
+  - Loop back to implement with in Pipeline - showing how it might help make clearer which
+    step failed. Though stack traces are the big elephant in the room.
+
+Elixir! PM! Look at me go!
+Pipline. Rollbacks. Oh fuck. Maybe it's only good in the abstract?
+Easy - just Funs for everyone?
+Abstraction giveth and abstraction taketh away (why do we want pattern matching anyway?)
+The problem: One to one from pattern to data type.
+There are at least two ways to solve this
+  1. Can patterns point to more than one concretion?
+  <!-- Don't reveal this right away, hint at it and come back -->
+  2. Can we think different - do refactoring tools help solve the same problem? sourceror spells
+Dive into the library - list example. Implement array.
+Demo how we hit the problem with the lib we were writing.
+Get tricky with protocols for patterns.
+
+
+
+
+
+
+The "I" thing
+When I first started in Elixir PM was cool etc.
+Then Pipeline. Steps... Boom.
+
+This is a problem. We have to go into tradeoffs with our eyes open so we should talk about the tradeoffs with pattern matching.
+By definition it reaches into the data structure's internals etc, but it's good.
+So what is the solution? Can we get the benefits of both? Can pattern matching be good in the abstract - or is it destined to be good in the abstract (ie in theory) (maybe slide says theory I say abstract again to make the pun very clear.)
+
+So if we step back and think about the problem we know what the solution is - it's what it always is - indirection. We need space for some implementation detail to change without it affecting an external interface. So for pattern matching what this really means is we need one pattern to be able to apply to many different data types.
+
+Active Patterns do this.
+Extractors sort of do this.
+Can we do this in Elixir? (yes with our own skill)
+have neither the skill or inclination to dive into the erlang pattern matching implementation to provide this but I have begun a naive go in elixir.
+
+[tour of the lib?]
+
+[hilarious anecdote about how we use pattern matching for pattern matching lib AND how the library we wrote was needed to solve the a problem we encountered while writing the library (structs to tuples.)]
+
+
+We need to be sure on whether we are describing the library we wrote or a bigger thing.
+Probably the latter.
+
+The latter is like:
+  - pattern matching is.
+  - indirection - one pattern to many data types
+  - patterns you can pass about - as first class data.
+  - one immutable interface - if implementation details change we can swap them without
+    propagating changes.
+  - The best of both via dev tools - if we had automated refactoring then would this problem
+    go away? inline the function to read the pattern - outline it for changes (so effectively all call sites are updated together). The tricky part is the same as the tricky part in having an abstract data type and defining a functional interface to it (ideally an unchanging one). Because you have to reason about how it'll be used - what patterns will be needed.
+
+
+Another Aside
+
+If you have patterns as data you can get a whole program as serializable data...presumably can be sent over the wire as etf - and we are in the world of defunctionalization probably.
+
+
+
+
+
+
+
+
+Let's dig into what makes pattern matching easier to read -
+  - less things to keep in your head
+  - less distance - is there a good analogy here or prior art?
+  - Koppel idea of whatever it was
+  - nearness less far to carry the knowledge - to keep in your head. We use chunking and
+    stuff. That's really what abstraction is - needing to carry less.
+  - So can you get that without it?
+
+
+Also - make it a story the thread in Duffel was about my story our story and something else...
+Basically framing it in a way that draws in the people.
+
+
+
+
+
+
+
+

@@ -6,7 +6,6 @@ defmodule MatchATest do
     only: [
       case_clauses: 1,
       case_clause: 2,
-      pattern: 1,
       variable: 1,
       rest: 1,
       rest: 0,
@@ -19,7 +18,7 @@ defmodule MatchATest do
   # matching_functions (fns to do on match) that all use the matching (which is essentially)
   # the control flow part. How is it different from destructuring?
 
-  describe "case for lists" do
+  describe "case/2 for lists" do
     test "[head, _] = [1, 2]" do
       pattern =
         case_clauses([
@@ -37,6 +36,10 @@ defmodule MatchATest do
         ])
 
       assert MatchA.case(pattern, [1, 2]) == %{head: 2}
+
+      assert_raise(MatchA.MatchError, "no matches!", fn ->
+        MatchA.case(pattern, [1])
+      end)
     end
 
     test "[head | rest] = [1, 2]" do
@@ -46,6 +49,7 @@ defmodule MatchATest do
         ])
 
       assert MatchA.case(pattern, [1, 2]) == %{head: 1, rest: [2]}
+      assert MatchA.case(pattern, [1]) == %{head: 1, rest: []}
     end
 
     test "[head | _] = [1, 2]" do
@@ -71,11 +75,21 @@ defmodule MatchATest do
         ])
 
       assert_raise(MatchA.MatchError, "no matches!", fn ->
-        MatchA.case(pattern, [1]) == %{head: 1}
+        MatchA.case(pattern, [1])
       end)
     end
 
-    test "..." do
+    test "[] = []" do
+      pattern =
+        case_clauses([
+          case_clause([empty()], & &1)
+        ])
+
+      assert MatchA.case(pattern, []) == %{}
+
+      assert_raise(MatchA.MatchError, "no matches!", fn ->
+        MatchA.case(pattern, [1])
+      end)
     end
   end
 end
