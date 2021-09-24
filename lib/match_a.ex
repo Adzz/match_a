@@ -42,7 +42,7 @@ defimpl Match, for: List do
 
   # The one element is special because it has two things in it really.
   def a([_], {:list, [:wildcard, {:rest, :wildcard}]}), do: {:match, %{}}
-  def a([_], {:list, [:wildcard, {:rest, {:variable, name}}] }), do: {:match, %{name => []}}
+  def a([_], {:list, [:wildcard, {:rest, {:variable, name}}]}), do: {:match, %{name => []}}
   def a([element], {:list, [variable: first, rest: :wildcard]}), do: {:match, %{first => element}}
 
   def a([element], {:list, [variable: first, rest: {:variable, name}]}) do
@@ -50,15 +50,15 @@ defimpl Match, for: List do
   end
 
   # Is invalid syntax or a match error?
-  def a([_], {:list,[_, _]}), do: :no_match
+  def a([_], {:list, [_, _]}), do: :no_match
 
   # lol at pattern matching to implement pattern matching.
   def a([element], {:list, [variable: name]}), do: {:match, %{name => element}}
   def a([_element], {:list, [:wildcard]}), do: {:match, %{}}
 
   # Rest doesn't makes sense for the first element in a one element list.
-  def a([_element], {:list,[{:rest, _}]}), do: raise(MatchA.InvalidMatchSyntax)
-  def a([_element], {:list,[_]}), do: raise(MatchA.InvalidMatchSyntax)
+  def a([_element], {:list, [{:rest, _}]}), do: raise(MatchA.InvalidMatchSyntax)
+  def a([_element], {:list, [_]}), do: raise(MatchA.InvalidMatchSyntax)
 
   def a(list, {:list, pattern}) when is_list(pattern) do
     # A list could have anything in it so we need a unique value to be able to determine
@@ -145,8 +145,8 @@ defmodule MatchA do
   @doc """
   is a case statement with pattern matching.
   """
-  def case({:case_clauses, clauses}, data) when is_list(clauses) do
-    Enum.reduce_while(clauses, :no_match, fn {:case_clause, pattern, continuation}, acc ->
+  def case(clauses, data) when is_list(clauses) do
+    Enum.reduce_while(clauses, :no_match, fn {pattern, continuation}, acc ->
       # I guess each thing needs to be able to define the way it can be matched. So lists,
       # tuples all that. That means we need to know BOTH what are we matching on AND with what
       # are we matching... which smells like double dispatch?
@@ -169,15 +169,18 @@ defmodule MatchA do
     end
   end
 
-  # The only reason to have pattern cases not be a list is so that we can provide validation when
-  # creating case statements AND so you could change the implementation latter (to a zipper?)
-  # That would mean we could undo the pattern match
-  def case_clauses(cases), do: {:case_clauses, cases}
-  def case_clause(pattern, continuation), do: {:case_clause, pattern, continuation}
   def variable(name), do: {:variable, name}
   # a binding can be wildcard() or variable()
   def rest(binding \\ wildcard()), do: {:rest, binding}
   def empty(), do: :empty
   def wildcard(), do: :wildcard
   def list(items), do: {:list, items}
+
+  # The only reason to have pattern cases not be a list is so that we can provide validation when
+  # creating case statements AND so you could change the implementation latter (to a zipper?)
+  # That would mean we could undo the pattern match. But really case clauses aren't part of the
+  # pm syntax because the implementation doesn't change for any of the data we match against...
+  # They are a higher level concept that leverage patterns for control flow
+  # def case_clauses(cases), do: {:case_clauses, cases}
+  # def case_clause(pattern, continuation), do: {:case_clause, pattern, continuation}
 end
