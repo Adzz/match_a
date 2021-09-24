@@ -12,11 +12,6 @@ defmodule MatchATest do
       list: 1
     ]
 
-  # If we make it a case fn then we'd have to implement case for every data type which
-  # no one wants. They need to be higher order - case takes a list of patterns and
-  # matching_functions (fns to do on match) that all use the matching (which is essentially)
-  # the control flow part. How is it different from destructuring?
-
   describe "destructure/2" do
     test "[head, _] = [1, 2]" do
       pattern = list([variable(:head), wildcard()])

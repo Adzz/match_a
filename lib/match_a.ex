@@ -108,23 +108,6 @@ defmodule MatchA do
   Documentation for `MatchA`.
   """
 
-  # Guess what we have a lisp.
-  #     MatchA.case([
-  #       # generalise the rollback thing mental.
-  #       {pattern([var(:head), wildcard()]), continuation}
-  #     ], [1])
-
-  #     MatchA.destructure(pattern([var(:head), wildcard()]), [1,2,4])
-
-  # case destructures then calls the and_then with the bindings. So does with, but it has
-  # an "undo" effectively - passes through the original data though interestingly.
-
-  # We could implement the case statement as a Pipeline - have a match trigger a rollback.
-  # which is essentially a with. HANG ON! That could be a cool feature to double back to
-  # the pipeline library at the end and implement `with` there (can even talk about how it
-  # helps solve the problem with `with`s (that the step that fails is hard to relate to the
-  # things that caused it to fail)).
-
   @doc """
   Returns a map of data destructured from the pattern match. The keys are the variables named in
   the pattern and the values are the data that got matched out.
@@ -135,9 +118,9 @@ defmodule MatchA do
   """
   def destructure(pattern, data) do
     case Match.a(data, pattern) do
-      # We could return data in the event of no match, or raise. Returning data means
-      # you could implement the rest higher up I suppose.
       :no_match -> {:no_match, %{}}
+      # This means we can implement raising match errors and falling through to other matches
+      # If we just raise here we couldn't do that.
       {:match, bindings} -> {:match, bindings}
     end
   end
@@ -162,9 +145,7 @@ defmodule MatchA do
     end)
     |> case do
       {:match, bindings, continuation} -> continuation.(bindings)
-      # We could not raise and have the caller decide what to do. Raising a match error
-      # happens in some places in elixir, but sometimes leads to fallthrough like case / with
-      # etc. I suppose we are really defining case statements.
+      # This could also be a case clause error really.
       :no_match -> raise MatchA.MatchError, "no matches!"
     end
   end
@@ -175,12 +156,4 @@ defmodule MatchA do
   def empty(), do: :empty
   def wildcard(), do: :wildcard
   def list(items), do: {:list, items}
-
-  # The only reason to have pattern cases not be a list is so that we can provide validation when
-  # creating case statements AND so you could change the implementation latter (to a zipper?)
-  # That would mean we could undo the pattern match. But really case clauses aren't part of the
-  # pm syntax because the implementation doesn't change for any of the data we match against...
-  # They are a higher level concept that leverage patterns for control flow
-  # def case_clauses(cases), do: {:case_clauses, cases}
-  # def case_clause(pattern, continuation), do: {:case_clause, pattern, continuation}
 end

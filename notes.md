@@ -260,3 +260,15 @@ Can we pattern match abstract data?
 
 
 
+
+
+
+  # We could implement the case statement as a Pipeline - have a match trigger a rollback.
+  # which is essentially a with. HANG ON! That could be a cool feature to double back to
+  # the pipeline library at the end and implement `with` there (can even talk about how it
+  # helps solve the problem with `with`s (that the step that fails is hard to relate to the
+  # things that caused it to fail)). There is something very tricky here around when we generalised
+  # the rollback mechanism. Like if each step in a pipeline is a pattern match then we can implement
+  # an executor that attempts a match and if it doesn't match continues if it does it stops. Or
+  # vice versa...
+
