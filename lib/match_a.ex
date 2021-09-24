@@ -8,6 +8,7 @@ end
 
 defprotocol Match do
   @moduledoc """
+  A protocol to provide the implementation of a pattern for a given data type.
   """
   def a(data, pattern)
 end
@@ -33,33 +34,33 @@ defimpl Match, for: List do
   """
   # def a(x, p), do: p |> IO.inspect(limit: :infinity, label: "")
   # raise("Invalid Match Syntax")
-  def a([], []), do: raise("Invalid Match Syntax")
-  def a([], [:empty]), do: {:match, %{}}
+  def a([], {:list, []}), do: raise("Invalid Match Syntax")
+  def a([], {:list, [:empty]}), do: {:match, %{}}
 
-  def a(_, [:empty]), do: :no_match
-  def a(_, [:empty | _]), do: raise(MatchA.InvalidMatchSyntax)
+  def a(_, {:list, [:empty]}), do: :no_match
+  def a(_, {:list, [:empty | _]}), do: raise(MatchA.InvalidMatchSyntax)
 
   # The one element is special because it has two things in it really.
-  def a([_], [:wildcard, {:rest, :wildcard}]), do: {:match, %{}}
-  def a([_], [:wildcard, {:rest, {:variable, name}}]), do: {:match, %{name => []}}
-  def a([element], variable: first, rest: :wildcard), do: {:match, %{first => element}}
+  def a([_], {:list, [:wildcard, {:rest, :wildcard}]}), do: {:match, %{}}
+  def a([_], {:list, [:wildcard, {:rest, {:variable, name}}] }), do: {:match, %{name => []}}
+  def a([element], {:list, [variable: first, rest: :wildcard]}), do: {:match, %{first => element}}
 
-  def a([element], variable: first, rest: {:variable, name}) do
+  def a([element], {:list, [variable: first, rest: {:variable, name}]}) do
     {:match, %{first => element, name => []}}
   end
 
   # Is invalid syntax or a match error?
-  def a([_], [_, _]), do: :no_match
+  def a([_], {:list,[_, _]}), do: :no_match
 
   # lol at pattern matching to implement pattern matching.
-  def a([element], variable: name), do: {:match, %{name => element}}
-  def a([_element], [:wildcard]), do: {:match, %{}}
+  def a([element], {:list, [variable: name]}), do: {:match, %{name => element}}
+  def a([_element], {:list, [:wildcard]}), do: {:match, %{}}
 
   # Rest doesn't makes sense for the first element in a one element list.
-  def a([_element], [{:rest, _}]), do: raise(MatchA.InvalidMatchSyntax)
-  def a([_element], [_]), do: raise(MatchA.InvalidMatchSyntax)
+  def a([_element], {:list,[{:rest, _}]}), do: raise(MatchA.InvalidMatchSyntax)
+  def a([_element], {:list,[_]}), do: raise(MatchA.InvalidMatchSyntax)
 
-  def a(list, pattern) when is_list(pattern) do
+  def a(list, {:list, pattern}) when is_list(pattern) do
     # A list could have anything in it so we need a unique value to be able to determine
     # if the list is out of bounds.
     out_of_bounds = make_ref()
@@ -129,6 +130,8 @@ defmodule MatchA do
   the pattern and the values are the data that got matched out.
 
   Returns {:no_match, %{}} in the event of no match and returns {:match bindings} otherwise.
+  Returning a tuple like this enables you to do things on the back of no match - like raise a
+  match error. This is meant as a low level utility function.
   """
   def destructure(pattern, data) do
     case Match.a(data, pattern) do
@@ -149,7 +152,8 @@ defmodule MatchA do
       # are we matching... which smells like double dispatch?
 
       # We can do this if the patterns are struct/protocols - or really modules with the same
-      # fn implemented. So I guess a behaviour might be more natural.
+      # fn implemented. So I guess a behaviour might be more natural. But the point is doing this
+      # with double dispatch is like tricky - you need structs really.
       with {:no_match, _} <- MatchA.destructure(pattern, data) do
         {:cont, acc}
       else

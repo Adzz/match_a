@@ -10,7 +10,8 @@ defmodule MatchATest do
       rest: 1,
       rest: 0,
       empty: 0,
-      wildcard: 0
+      wildcard: 0,
+      list: 1
     ]
 
   # If we make it a case fn then we'd have to implement case for every data type which
@@ -18,11 +19,18 @@ defmodule MatchATest do
   # matching_functions (fns to do on match) that all use the matching (which is essentially)
   # the control flow part. How is it different from destructuring?
 
+  describe "destructure/2" do
+    test "[head, _] = [1, 2]" do
+      pattern = list([ variable(:head), wildcard()] )
+      assert MatchA.destructure(pattern, [1, 2]) == {:match, %{head: 1}}
+    end
+  end
+
   describe "case/2 for lists" do
     test "[head, _] = [1, 2]" do
       pattern =
         case_clauses([
-          case_clause([variable(:head), wildcard()], & &1)
+          case_clause(list([variable(:head), wildcard()]), & &1)
         ])
 
       assert MatchA.case(pattern, [1, 2]) == %{head: 1}
@@ -30,7 +38,7 @@ defmodule MatchATest do
       # With continuation...
       pattern =
         case_clauses([
-          case_clause([variable(:head), wildcard()], fn bindings ->
+          case_clause(list([variable(:head), wildcard()]), fn bindings ->
             Map.put(bindings, :head, bindings.head + 1)
           end)
         ])
@@ -45,7 +53,7 @@ defmodule MatchATest do
     test "[head | rest] = [1, 2]" do
       pattern =
         case_clauses([
-          case_clause([variable(:head), rest(variable(:rest))], & &1)
+          case_clause(list([variable(:head), rest(variable(:rest))]), & &1)
         ])
 
       assert MatchA.case(pattern, [1, 2]) == %{head: 1, rest: [2]}
@@ -55,14 +63,14 @@ defmodule MatchATest do
     test "[head | _] = [1, 2]" do
       pattern =
         case_clauses([
-          case_clause([variable(:head), rest(wildcard())], & &1)
+          case_clause(list([variable(:head), rest(wildcard())]), & &1)
         ])
 
       assert MatchA.case(pattern, [1, 2]) == %{head: 1}
 
       pattern =
         case_clauses([
-          case_clause([variable(:head), rest()], & &1)
+          case_clause(list([variable(:head), rest()]), & &1)
         ])
 
       assert MatchA.case(pattern, [1, 2]) == %{head: 1}
@@ -71,7 +79,7 @@ defmodule MatchATest do
     test "[head, rest] = [1]" do
       pattern =
         case_clauses([
-          case_clause([variable(:head), variable(:rest)], & &1)
+          case_clause(list([variable(:head), variable(:rest)]), & &1)
         ])
 
       assert_raise(MatchA.MatchError, "no matches!", fn ->
@@ -82,7 +90,7 @@ defmodule MatchATest do
     test "[] = []" do
       pattern =
         case_clauses([
-          case_clause([empty()], & &1)
+          case_clause(list([empty()]), & &1)
         ])
 
       assert MatchA.case(pattern, []) == %{}

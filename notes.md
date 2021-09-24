@@ -209,7 +209,54 @@ Basically framing it in a way that draws in the people.
 
 
 
+PM - in the beginning there was P.M. [could skip for time]
 
+All Pipes Lead to Smart pipes - AKA I wrote a pipeline lib
+... And got bitten. (reversible list - zipper)
+Explicitly state the problem.
+Active Patterns, extractors, Views - Papers written before Haskell had me reading Miranda!
+In short... confusion
+
+What is abstract data? - Multiple implementations at once - or over time.
+  Multiple implementations at once: Shapes! Area! Permimeter!
+  Multiple implementations over time: Pipeline - list / zipper.
+
+Two simple solutions - 1. Just don't care
+ - pm is usually explicit coupling meaning you should know when it fails. So it may represent
+   work to go and fix all the pattern matches, but this may not be that much work and it's at least better than it failing silently.
+
+So this is easy then... Just don't use pattern matching.
+  - Expose functions, define public interface.
+  - means composable, reusable functions.
+  - means being insulated from changes.
+
+But there are downsides...
+
+  You have to define that interface and it's usually a breaking change to remove or edit a function in it.
+
+  In elixir you can't force access to only be via the functions - so there isn't the encapsulation that you might expect. In reality this is usually fine but still you cannot
+  say "the only way to access this data is via this fn".
+
+  You have to jump around files when reading. There this sense where you can understand
+  what's happening in the code well with well named functions, but you struggle to really
+  understand _what's happening_. We can think about two levels of code here: What the code
+  _means_ - like what's happening in the domain. And what is actually happening to enable
+  the thing you want the domain to do. So there is the concept of "finished the pipeline"
+  and there is the way we actually _know_ how to do that (eg check for empty list).
+
+  Adding a function introduces the chance of calling that function incorrectly. You need docs
+  and type checking and unit tests to eliminate a problem that wouldn't exist if everything was inlined - ie if there was not function.
+
+
+Possible solutions...
+
+
+
+  - function interface
+  - what do we lose when we make it abstract?
+  -
+
+Can we pattern match abstract data?
 
 
 
