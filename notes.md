@@ -45,7 +45,6 @@ Also when it's all structs it's kind of serializable I guess.
 Having them as structs also forces there to be an immutable external interface - the
 struct name I guess.
 ```elixir
-
 defprotocol Last do
   defstruct []
   @fallback_to_any true
@@ -54,13 +53,11 @@ end
 
 defimpl Last, for: List do
   def match(list) do
+    # this gets the value out but we need to bind it to a variable really.
     List.last(list)
   end
 end
 
-# Can't remember the syntax but essentially we can fallback to any.
-# This is cool but is it better? And can we explain it in a 40 min talk?
-# probs difficult.
 defimpl Last, for: Any do
   def match(data) do
     raise "Invalid match syntax - Last not implemented for #{inspect(data)}"
@@ -86,6 +83,43 @@ Pattern.evaluate(%Last{}, [1,2])
 # and have a functional interface to it. I guess the litmus test of a pattern is can it
 # apply to more than one concrete data type. If so then good if not it's suspicious.
 Pattern.evaluate(%Last{}, %{a: 1, b: 2})
+
+<!-- We should use Rest as the example  -->
+
+defprotocol Rest do
+  defstruct []
+  @fallback_to_any true
+  def match(data)
+end
+
+defimpl Rest, for: Map do
+  def match(list) do
+    # this gets the value out but we need to bind it to a variable really.
+    Map.drop(...)
+  end
+end
+
+defimpl Rest, for: Any do
+  def match(data) do
+    raise "Invalid match syntax - Rest not implemented for #{inspect(data)}"
+  end
+end
+
+defprotocol Pattern do
+  def evaluate(pattern, data)
+end
+
+defimpl Pattern, for: Rest do
+  def evaluate(%struct{} = pattern, pattern) do
+  <!-- This should be different, it should be -->
+    struct.match(pattern, pattern)
+    <!-- passing this in second allows us to add free vars to the mix and use them in the fn -->
+  end
+end
+
+Pattern.evaluate(%Rest{}, [1,2])
+
+
 ```
 
 We want to be able to change a fn call to the pattern match
@@ -211,14 +245,17 @@ Basically framing it in a way that draws in the people.
 
 PM - in the beginning there was P.M. [could skip for time]
 
-All Pipes Lead to Smart pipes - AKA I wrote a pipeline lib
+All Pipes Lead to Smart pipes - AKA I wrote a pipeline lib.
 ... And got bitten. (reversible list - zipper)
+
 Explicitly state the problem.
 Active Patterns, extractors, Views - Papers written before Haskell had me reading Miranda!
-In short... confusion
+In short... confusion. So let's back up. The problem is... Pattern Matching exposes the internals,
+but in doing that... well we expose the internals; we rely on them meaning if they change BOOM!
+So if pattern matching only good in an abstract sense? Or can it be good in Abstract data?
 
 What is abstract data? - Multiple implementations at once - or over time.
-  Multiple implementations at once: Shapes! Area! Permimeter!
+  Multiple implementations at once: Shapes! Area! Permimeter! Reversible Pipeline vs PipeLine. (explosion? but backwards compatible)
   Multiple implementations over time: Pipeline - list / zipper.
 
 Two simple solutions - 1. Just don't care
@@ -235,7 +272,7 @@ But there are downsides...
   You have to define that interface and it's usually a breaking change to remove or edit a function in it.
 
   In elixir you can't force access to only be via the functions - so there isn't the encapsulation that you might expect. In reality this is usually fine but still you cannot
-  say "the only way to access this data is via this fn".
+  say "the only way to access this data is via this fn". IE you can't stop the match.
 
   You have to jump around files when reading. There this sense where you can understand
   what's happening in the code well with well named functions, but you struggle to really
@@ -247,17 +284,34 @@ But there are downsides...
   Adding a function introduces the chance of calling that function incorrectly. You need docs
   and type checking and unit tests to eliminate a problem that wouldn't exist if everything was inlined - ie if there was not function.
 
+  PM is very natural in elixir. So what are we saying? We should never use it? Seems... bad.
 
-Possible solutions...
+Can we get the best of both? Can we pattern match abstract data?
 
+I am neither brave nor clever enough to change erlang's pattern matching implementation but I am
+foolhardy enough to try it in elixir. To get what we want the problem boils down to one pattern
+refering to one data type:
 
+[a, b] = [1, 2]
 
-  - function interface
-  - what do we lose when we make it abstract?
+The above only works on lists, not on all collection types, nor even all ordered collections (like erlang arrays)
+So let's write our own pattern match library that allows us this flexibility...
+
+DEMO:
+  - basic two pattern match - explain can be made recursive and all the rest but keep example v. simple.
+  - list([variable(:a), variable(:b)]) == [a, b]
+  - MatchA.destructure(list([variable(:a), variable(:b)]), [1, 2]) == [a, b] = [1, 2]
+
+  - Now peek the implementation - We use a protocol to get the indirection we desire. Means we can
+    now implement the above for both list and erlang array - or our own datatype! Yay.
+  - There are obviously lots of patterns though.. so we use pattern matching to implement pattern matching.
+    which lol.
+  - Except now we have hit the very problem that the library we are writing is trying to solve.
   -
 
-Can we pattern match abstract data?
-
+primitives in the PM lang? like variable and wildcard. Empty and rest should be implemented differently
+We can use the struct technique to add free variables into the mix and therefore add more values where
+needed.
 
 
 
