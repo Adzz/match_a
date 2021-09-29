@@ -33,34 +33,33 @@ defimpl Match, for: List do
 
   """
   # def a(x, p), do: p |> IO.inspect(limit: :infinity, label: "")
-  # raise("Invalid Match Syntax")
-  def a([], {:list, []}), do: raise("Invalid Match Syntax")
-  def a([], {:list, [:empty]}), do: {:match, %{}}
+  def a([], []), do: raise("Invalid Match Syntax")
+  def a([], [:empty]), do: {:match, %{}}
 
-  def a(_, {:list, [:empty]}), do: :no_match
-  def a(_, {:list, [:empty | _]}), do: raise(MatchA.InvalidMatchSyntax)
+  def a(_, [:empty]), do: :no_match
+  def a(_, [:empty | _]), do: raise(MatchA.InvalidMatchSyntax)
 
   # The one element is special because it has two things in it really.
-  def a([_], {:list, [:wildcard, {:rest, :wildcard}]}), do: {:match, %{}}
-  def a([_], {:list, [:wildcard, {:rest, {:variable, name}}]}), do: {:match, %{name => []}}
-  def a([element], {:list, [variable: first, rest: :wildcard]}), do: {:match, %{first => element}}
+  def a([_], [:wildcard, {:rest, :wildcard}]), do: {:match, %{}}
+  def a([_], [:wildcard, {:rest, {:variable, name}}]), do: {:match, %{name => []}}
+  def a([element], [variable: first, rest: :wildcard]), do: {:match, %{first => element}}
 
-  def a([element], {:list, [variable: first, rest: {:variable, name}]}) do
+  def a([element], [variable: first, rest: {:variable, name}]) do
     {:match, %{first => element, name => []}}
   end
 
   # Is invalid syntax or a match error?
-  def a([_], {:list, [_, _]}), do: :no_match
+  def a([_], [_, _]), do: :no_match
 
   # lol at pattern matching to implement pattern matching.
-  def a([element], {:list, [variable: name]}), do: {:match, %{name => element}}
-  def a([_element], {:list, [:wildcard]}), do: {:match, %{}}
+  def a([element], [variable: name]), do: {:match, %{name => element}}
+  def a([_element], [:wildcard]), do: {:match, %{}}
 
   # Rest doesn't makes sense for the first element in a one element list.
-  def a([_element], {:list, [{:rest, _}]}), do: raise(MatchA.InvalidMatchSyntax)
-  def a([_element], {:list, [_]}), do: raise(MatchA.InvalidMatchSyntax)
+  def a([_element], [{:rest, _}]), do: raise(MatchA.InvalidMatchSyntax)
+  def a([_element], [_]), do: raise(MatchA.InvalidMatchSyntax)
 
-  def a(list, {:list, pattern}) when is_list(pattern) do
+  def a(list, pattern) when is_list(pattern) do
     # A list could have anything in it so we need a unique value to be able to determine
     # if the list is out of bounds.
     out_of_bounds = make_ref()
@@ -125,6 +124,20 @@ defmodule MatchA do
     end
   end
 
+  def pattern <~> data do
+    case MatchA.destructure(pattern, data) do
+      {:match, bindings} -> bindings
+      {:no_match, _} -> raise MatchA.MatchError, "no match!"
+    end
+  end
+
+  def matches?(pattern, data) do
+    case MatchA.destructure(pattern, data) do
+      {:no_match, _} -> false
+      {:match, _} -> true
+    end
+  end
+
   @doc """
   is a case statement with pattern matching.
   """
@@ -150,10 +163,10 @@ defmodule MatchA do
     end
   end
 
-  def variable(name), do: {:variable, name}
+  def var(name), do: {:variable, name}
   # a binding can be wildcard() or variable()
   def rest(binding \\ wildcard()), do: {:rest, binding}
   def empty(), do: :empty
   def wildcard(), do: :wildcard
-  def list(items), do: {:list, items}
+  # def list(items), do: {:list, items}
 end

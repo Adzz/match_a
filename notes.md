@@ -86,21 +86,52 @@ Pattern.evaluate(%Last{}, %{a: 1, b: 2})
 
 <!-- We should use Rest as the example  -->
 
+# in the list impl, something like:
+rest = %{ %Rest{} | context: %{index: index} }
+
+case Pattern.match(rest, list) do
+  :no_match -> {:halt, :no_match}
+  value -> {:cont, {index + 1, Map.put(bindings, var_name, value)}}
+end
+
+# in the map something like:
+
+rest = %{ %Rest{} | context: %{taken_keys: keys} }
+
+case Pattern.match(rest, map) do
+  :no_match -> {:halt, :no_match}
+  value -> {:cont, {index + 1, Map.put(bindings, var_name, value)}}
+end
+
 defprotocol Rest do
-  defstruct []
+  # this allows data to be passed through to the implementation
+  # for example the index where "rest" begins, or in a map the
+  # keys already selected I guess.
+  defstruct [:binding, :context]
   @fallback_to_any true
-  def match(data)
+  def match(data, context)
+end
+
+defimpl Rest, for: List do
+  def match(list, %Rest{context: %{index: index}}) do
+    out_of_bounds = make_ref()
+
+    case Enum.at(list, index, out_of_bounds) do
+      ^out_of_bounds -> :no_match
+      value -> value
+    end
+  end
 end
 
 defimpl Rest, for: Map do
-  def match(list) do
-    # this gets the value out but we need to bind it to a variable really.
-    Map.drop(...)
+  # assumes taken keys have already not blown up - ie we match so far.
+  def match(map, %Rest{binding: %Wildcard{}, context: %{taken_keys: taken}}) do
+    Map.drop(map, taken)
   end
 end
 
 defimpl Rest, for: Any do
-  def match(data) do
+  def match(data, _) do
     raise "Invalid match syntax - Rest not implemented for #{inspect(data)}"
   end
 end
@@ -110,17 +141,75 @@ defprotocol Pattern do
 end
 
 defimpl Pattern, for: Rest do
-  def evaluate(%struct{} = pattern, pattern) do
-  <!-- This should be different, it should be -->
-    struct.match(pattern, pattern)
-    <!-- passing this in second allows us to add free vars to the mix and use them in the fn -->
+  def evaluate(%struct{} = pattern, data) do
+    <!-- passing this in second allows us to add free vars to the mix and use them in the fn ? -->
+    struct.match(data, pattern)
   end
 end
 
-Pattern.evaluate(%Rest{}, [1,2])
+<!-- This would basically return %{a: [1,2]} from a destructure -->
+Pattern.evaluate(list([rest(variable(:a))]), [1,2])
 
 
 ```
+
+Let's think about the match syntax. We want to have one bit of syntax map to many
+
+```elixir
+def variable(name), do: {:variable, name}
+# rest is only for ordered collections really. You could have it for maps but how would that work.
+# like JS destructuring I suppose. The spread operator.
+def rest(binding \\ wildcard()), do: {:rest, binding}
+def empty(), do: :empty
+def wildcard(), do: :wildcard
+def list(items), do: {:list, items}
+# could / should we add map syntax - lets us get a subset of a thing?
+
+def map(bindings), do: {:map, bindings}
+# pattern matching here is fine because rest is implemented above so if we change it we'll know to
+# change here too quite quickly.
+# aside does it make sense to call this map, or subset? the list matching is more like a match on
+# order of elements tbh. though for the talk name might be fine. Using something like subset might
+# allow more flexibility to specify a subset of things that aren't implemented via a map or where
+# there is an abstraction barrier that we shouldn't cross... For example MapSet.
+# maybe it's not subset, maybe it's just elements or something. Though they sort of mean the same
+# thing. But how do we use a map to specify elements in a map set? as mapsets dont have keys
+# use a list? make it keyword if there are keys.
+def map(bindings, {:rest, bindings}), do: {:map, bindings, bindings}
+
+map(%{my_key: variable(:a)})
+map(%{my_key: variable(:a)}, rest(variable(:rest)))
+
+
+
+map([my_key: variable(:a), variable(:b)])
+subset(%{key: wildcard()})
+<!-- subset is not ordered but a list is by that's just a means to get values in. Really it would -->
+<!-- be a mapset there, but then using mapsets to pattern match mapsets... which okay. -->
+<!-- could be fine I guess. Interesting whether we can unlock the key pattern match for example. -->
+patern = subset(%{a: :b})
+pattern = subset([1, 2, rest])
+
+```
+
+right so variable works the same for everything - you access some value determined by the context of the pattern it is in and add it to the bindings.
+
+rest is only relevant for collections and different collections need to implement it differently. So really it can only appear in certain matches and doesn't make sense on its own
+really. So rest on a string might not make sense - unless rest on a thing is all of it.
+
+empty again only makes sense for collections (including strings/binaries) probably and is implemented differently for
+those collections.
+
+wildcard is universal but contextual a bit - in that sometimes it's a valid match and sometimes not. Like:
+_ = 1 is valid but [a, _] = [1] is not.
+
+having a map or subset or elements kind of thing would be cool to enable pattern matching on MapSets, the same
+way we do on maps. Maybe for maps the subset is a k / v pair which is why a keyword list could be useful
+
+The Q we are trying to answer is do we need the double dispatch faff? No probably not to be honest.
+variable is implemented the same sort of - where you get the var from does matter for different
+
+
 
 We want to be able to change a fn call to the pattern match
 and then change it back.
@@ -167,7 +256,7 @@ What even _is_ pattern matching?
     step failed. Though stack traces are the big elephant in the room.
 
 Elixir! PM! Look at me go!
-Pipline. Rollbacks. Oh fuck. Maybe it's only good in the abstract?
+Pipline. Rollbacks. Oh fuck. Maybe... it's only... good in the abstract??
 Easy - just Funs for everyone?
 Abstraction giveth and abstraction taketh away (why do we want pattern matching anyway?)
 The problem: One to one from pattern to data type.
@@ -179,7 +268,56 @@ Dive into the library - list example. Implement array.
 Demo how we hit the problem with the lib we were writing.
 Get tricky with protocols for patterns.
 
+This is cool because it enables extension of pattern matching - essentially you can define
+more powerful PM for your own data types that doesn't just rely on
 
+<!-- We want to be able to pattern match the list ?
+Or do we want to be able to pattern match next?  -->
+
+<!--
+  for it to be equivalent though it's not the PM that failed - it still got steps it
+  was the iteration. The value changed, not the key.
+
+  For our pipeline not to fail we have to implement enumerable for the PipeLine. That's it.
+  (no because then you wouldn't be able to reverse etc. but it would solve some cases) that
+  you can then build reverse etc off of.
+
+  What PM problem does Matcha solve? Means we can PM on more than one kind of thing but the problem
+  statement about PipeLine doesn't really help. It would land more if the PM version accessed the
+  next step via PM - but we dont we used reduce_while.
+
+  Also "next_item" is that general enough to reify into a pattern? Do we want open and extensible
+  patterns? I guess it is in a sense.
+
+  Is there a more convincing use case that leverages a PM that we can't really hide behind an
+  abstraction? The array thing springs to mind.
+ -->
+
+prior art in other langs
+  - clojure allows matching on sequence abstrations
+  - F sharp has active patterns which allow a similar idea in some ways
+  - Scala has extractors which are also dancing around the same idea
+  - Are protocols enough? Should we just use functions?
+
+Pattern.match(list([variable(:head), rest()]), %PipeLine{})
+
+
+Conclusion:
+  implement your own PM language.
+  Just kidding.
+
+ PM for (type based) control flow - this struct do this, otherwise do that.
+ If you access data are you crossing an abstraction barrier?
+ Use it with abandon _inside_ your abstractions.
+ When writing libraries offer those function interfaces, try and make it as clear
+ as possible what is fair game.
+
+But all this got me thinking. (End on a question kind of deal?)
+Are we thinking about this all wrong. Is this a source code problem?
+Imagine this editor, you see the function and it inlines the fn so you can see the pattern match
+this is quick and not permanent.
+
+Is that a better way?
 
 
 
@@ -217,13 +355,6 @@ The latter is like:
     go away? inline the function to read the pattern - outline it for changes (so effectively all call sites are updated together). The tricky part is the same as the tricky part in having an abstract data type and defining a functional interface to it (ideally an unchanging one). Because you have to reason about how it'll be used - what patterns will be needed.
 
 
-Another Aside
-
-If you have patterns as data you can get a whole program as serializable data...presumably can be sent over the wire as etf - and we are in the world of defunctionalization probably.
-
-
-
-
 
 
 
@@ -240,10 +371,6 @@ Let's dig into what makes pattern matching easier to read -
 Also - make it a story the thread in Duffel was about my story our story and something else...
 Basically framing it in a way that draws in the people.
 
-
-
-
-PM - in the beginning there was P.M. [could skip for time]
 
 All Pipes Lead to Smart pipes - AKA I wrote a pipeline lib.
 ... And got bitten. (reversible list - zipper)
@@ -309,9 +436,46 @@ DEMO:
   - Except now we have hit the very problem that the library we are writing is trying to solve.
   -
 
+
+There are two ways to get one pattern to match many different data types. One is to implement one match for each data type differently. The other is to implement each data type with the same kind of underlying data type.
+
+So for example in elixir Structs are all maps. That means pattern matching syntax for maps applies to any struct. So we get one to many. Both have their place, but one downside of implementing lots of datatypes in terms of one is it can lead to strange looking data in order to get sensible looking pattern matches. To the point where you wouldn't do that.
+
+Like imagine a MapSet that allows PM - well MapSet is a struct and therefore a map, so we _can_ pm on it.... but to get what we actually want (like pattern match on the elements in the MapSet) we'd have to expose the things we want to match on in the keys present in the MapSet.
+
+So instead we can go the other way and try to implement one pattern differently for each data type it might be relevant to.
+
+
+
 primitives in the PM lang? like variable and wildcard. Empty and rest should be implemented differently
 We can use the struct technique to add free variables into the mix and therefore add more values where
 needed.
+
+
+
+What are ADTs
+Abstractions - many concretions. Either at once or over time.
+Because you have many concretions the abstraction handles that usually by exposing fns
+So we could do that. But now we aren't pattern matching.
+
+So why are pattern matching?
+
+There's this sense where piling on abstractions can (at its best) give you a clear understanding of
+what you program is doing in the problem domain - it can tell you what's happening at that level of
+abstraction.
+
+But there is a clear need to know sometimes what is actually happening. 2am when the pager is going
+mental (also, remember pagers?!).
+
+Both have their places and both
+
+Sometimes we have the clear design pressure to know "we'll have many shapes let's think about that"
+But other times you might not think "we need reversible pipelines" until much later.
+
+so the solution can't be "just think of everything up front" (solution to what we havent outlined the problem yet)
+
+Abstract then means we can hide implementation details. But this is by definition at odds with
+what pattern matching does.
 
 
 
