@@ -255,6 +255,8 @@ What even _is_ pattern matching?
   - Loop back to implement with in Pipeline - showing how it might help make clearer which
     step failed. Though stack traces are the big elephant in the room.
 
+
+
 Elixir! PM! Look at me go!
 Pipline. Rollbacks. Oh fuck. Maybe... it's only... good in the abstract??
 Easy - just Funs for everyone?
@@ -300,7 +302,6 @@ prior art in other langs
   - Are protocols enough? Should we just use functions?
 
 Pattern.match(list([variable(:head), rest()]), %PipeLine{})
-
 
 Conclusion:
   implement your own PM language.

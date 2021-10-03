@@ -10,6 +10,7 @@ defprotocol Match do
   @moduledoc """
   A protocol to provide the implementation of a pattern for a given data type.
   """
+
   def a(data, pattern)
 end
 
@@ -23,6 +24,10 @@ defimpl Match, for: Tuple do
   def a({:array, _, _, _, _}, _pattern_case) do
     :no_match
   end
+end
+
+defimpl Match, for: Zipper do
+  def a(...)
 end
 
 defimpl Match, for: List do
@@ -42,9 +47,9 @@ defimpl Match, for: List do
   # The one element is special because it has two things in it really.
   def a([_], [:wildcard, {:rest, :wildcard}]), do: {:match, %{}}
   def a([_], [:wildcard, {:rest, {:variable, name}}]), do: {:match, %{name => []}}
-  def a([element], [variable: first, rest: :wildcard]), do: {:match, %{first => element}}
+  def a([element], variable: first, rest: :wildcard), do: {:match, %{first => element}}
 
-  def a([element], [variable: first, rest: {:variable, name}]) do
+  def a([element], variable: first, rest: {:variable, name}) do
     {:match, %{first => element, name => []}}
   end
 
@@ -52,7 +57,7 @@ defimpl Match, for: List do
   def a([_], [_, _]), do: :no_match
 
   # lol at pattern matching to implement pattern matching.
-  def a([element], [variable: name]), do: {:match, %{name => element}}
+  def a([element], variable: name), do: {:match, %{name => element}}
   def a([_element], [:wildcard]), do: {:match, %{}}
 
   # Rest doesn't makes sense for the first element in a one element list.
