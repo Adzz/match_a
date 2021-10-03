@@ -7,10 +7,6 @@ defmodule MatchA.InvalidMatchSyntax do
 end
 
 defprotocol Match do
-  @moduledoc """
-  A protocol to provide the implementation of a pattern for a given data type.
-  """
-
   def a(data, pattern)
 end
 

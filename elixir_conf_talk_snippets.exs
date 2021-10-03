@@ -291,7 +291,7 @@ def with_trace(%Pipeline{steps: steps} = pipeline) do
   if MatchA.matches?([empty()], steps) do
     pipeline.state
   else
-    # Can this be better / simpler syntax
+    # Can this be better / simpler syntax yes with macros
     bindings = [var(:current_step), rest(var(:rest))] <~> steps
 
     Logger.info("Executing Step...")
