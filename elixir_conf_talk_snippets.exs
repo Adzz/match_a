@@ -18,7 +18,7 @@ PipeLine.new(1)
 
 {[current_step | _ ], [previous_step | _]} = pipeline.steps
 
-def with_trace(%Pipeline{steps: steps, state: state}) do
+def with_trace(%PipeLine{steps: steps, state: state}) do
   Enum.reduce(steps, state, fn step, acc ->
     Logger.info("Executing Step...")
     start_time = System.monotonic_time(:millisecond)
@@ -32,7 +32,7 @@ def with_trace(%Pipeline{steps: steps, state: state}) do
   end)
 end
 
-def with_trace(%Pipeline{steps: steps, state: state}) do
+def with_trace(%PipeLine{steps: steps, state: state}) do
   Enum.reduce_while(steps, state, fn step, acc ->
     Logger.info("Executing Step...")
     start_time = System.monotonic_time(:millisecond)
@@ -120,7 +120,7 @@ defmodule PipeLine do
 end
 
 def with_trace(pipeline) do
-  if Pipeline.complete?(pipeline) do
+  if PipeLine.complete?(pipeline) do
     pipeline.state
   else
     current = PipeLine.current_step(pipeline)
@@ -139,7 +139,7 @@ end
 # Actually it should be this.
 
 def with_trace(pipeline) do
-  if Pipeline.complete?(pipeline) do
+  if PipeLine.complete?(pipeline) do
     pipeline.state
   else
     current = PipeLine.current_step(pipeline)
@@ -171,7 +171,7 @@ def with_trace(pipeline) do
 end
 
 def with_trace(pipeline) do
-  if Pipeline.complete?(pipeline) do
+  if PipeLine.complete?(pipeline) do
     pipeline.state
   else
     current = PipeLine.current_step(pipeline)
@@ -200,31 +200,32 @@ end
 
 # Should be this because then they are even closer
 
-  def with_trace(%Pipeline{steps: steps, state: state} = pipeline) do
-    if [] == steps do
-      state
-    else
-      [current_step | rest ] = steps
+def with_trace(%PipeLine{steps: steps, state: state} = pipeline)
+  when is_list(steps) do
+  if [] == steps do
+    state
+  else
+    [current_step | rest ] = steps
 
-      Logger.info("Executing Step...")
-      start_time = System.monotonic_time(:millisecond)
+    Logger.info("Executing Step...")
+    start_time = System.monotonic_time(:millisecond)
 
-      new_state = current_step.action.(state)
+    new_state = current_step.action.(state)
 
-      milliseconds_taken = System.monotonic_time(:millisecond) - start_time
-      Logger.info("Milliseconds taken = #{milliseconds_taken}")
+    milliseconds_taken = System.monotonic_time(:millisecond) - start_time
+    Logger.info("Milliseconds taken = #{milliseconds_taken}")
 
-      case new_state do
-        {:error, _} -> new_state
-        {:ok, _} -> with_trace(%{pipeline | state: new_state, steps: rest})
-      end
+    case new_state do
+      {:error, _} -> new_state
+      {:ok, state} -> with_trace(%{pipeline | state: state, steps: rest})
     end
   end
+end
 
 # With functions
 
 def with_trace(pipeline) do
-  if Pipeline.complete?(pipeline) do
+  if PipeLine.complete?(pipeline) do
     pipeline.state
   else
     current = PipeLine.current_step(pipeline)
@@ -240,9 +241,9 @@ def with_trace(pipeline) do
       {:error, _} ->
         pipeline.state
 
-      {:ok, _} ->
+      {:ok, state} ->
         pipeline
-        |> PipeLine.update_state(new_state)
+        |> PipeLine.update_state(state)
         |> PipeLine.next_step()
         |> with_trace()
     end
@@ -276,22 +277,12 @@ end
 # type checks or whatever. could do fizzbuzz
 
 
-
-
-
-BTree[ [b]  | nil] = tree
-
 # with pattern matching
 
-defmodule PipeLine do
-
-end
-
-def with_trace(%Pipeline{steps: steps} = pipeline) do
+def with_trace(%PipeLine{steps: steps} = pipeline) do
   if MatchA.matches?([empty()], steps) do
     pipeline.state
   else
-    # Can this be better / simpler syntax yes with macros
     bindings = [var(:current_step), rest(var(:rest))] <~> steps
 
     Logger.info("Executing Step...")
@@ -304,16 +295,10 @@ def with_trace(%Pipeline{steps: steps} = pipeline) do
 
     case new_state do
       {:error, _} -> new_state
-      {:ok, _} -> with_trace(%{pipeline | state: new_state, steps: bindings.rest})
+      {:ok, state} -> with_trace(%{pipeline | state: state, steps: bindings.rest})
     end
   end
 end
-
-def match_date(%Date<year-10-day  >)
-
-Date.month()
-
-def match_Date(%Date{month: 10, year: year, day: day})
 
 
 # We need to big up the PM !! We see it everywhere. Why? it needs to be convincing that
@@ -661,6 +646,19 @@ end
   admin: true,
   friends: [%{friends: [ %{name: friends_friends_name} | _]} | _]
 } = user
+
+%{
+  admin: true,
+  friends: [%{friends: [ %{name: friends_friends_name} | _]} | _]
+} <~> user
+
+# What if the list of friends was a zipper? why would it be tho
+# could become array?
+# Map with integer keys.
+
+friends = %{ 0 => friend_1, 1 => friend_2,  2 => friend_3}
+friends = %MapList{ list: %{0 => friend_1, 1 => friend_2} }
+
 
 # ... Or let's sum pairs of numbers in a list.
 # [Probs drop this for time. Leave it add it if we run out.]
