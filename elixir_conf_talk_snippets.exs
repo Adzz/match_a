@@ -625,8 +625,7 @@ at_elixir_conf = true
   # [wat slide]
 
 # That's backwards.
-
-%{you_up?: true} = my_map
+%{speaker?: true} = user
 
 # Because it wasn't variable assignment it was pattern matching. And what a world,
 # what a time to be alive! There are some great examples of pattern matching.
@@ -637,6 +636,24 @@ def fizz_then_buzz_off(n) when is_integer(n) do
     {0, _} -> "Fizz"
     {_, 0} -> "Buzz"
     {_, _} -> n
+  end
+end
+
+def fizz_then_buzz_off(n) when is_integer(n) do
+  mask = {Integer.mod(n, 3), Integer.mod(n, 5)}
+
+  if mask == {0, 0} do
+    "Fizzbuzz"
+  else
+    if elem(mask, 0) == 0 do
+      "Fizz"
+    else
+      if elem(mask, 1) == 0 do
+        "buzz"
+      else
+        n
+      end
+    end
   end
 end
 
@@ -819,6 +836,18 @@ end
 # Which means there isn't a map pattern match we can make that abstracts over these two different
 # colour representations.
 
+# Imagine trying to write this functions:
+
+def is_red(%{...}) do
+  ...
+end
+
+# There are no keys to abstract over.
+
+def is_red(%{__struct__: colour_type} = colour) do
+  colour_type.is_red?(colour)
+end
+
 # So what can we do? Easy, re-implement pattern matching. Now I am not brave nor clever enough
 # to attempt a re-write of erlang's pattern matching but I am foolhardy enough to attempt it in
 # elixir.
@@ -826,20 +855,575 @@ end
 # The simplest way is to introduce a protocol. This would allow each data type to implement a given
 # pattern for themselves... so we could define some patterns like so:
 
-  # [slide of pattern syntax]
-  # [show the equiv]
+[current_step | rest] = [1, 2]
+[var(:current_step), rest(var(:rest))] = [1, 2]
 
+vars =
+  [var(:current_step), rest(var(:rest))] <~> [1, 2]
+
+
+# This is the actuall function BUT FOR THE SLIDE we do
+# [it a bit different and skip the destructure function to keep it simpler]
+
+def pattern <~> data do
+  case MatchA.destructure(pattern, data) do
+    {:match, bindings} -> bindings
+    {:no_match, _} -> raise MatchA.MatchError, "no match!"
+  end
+end
+
+# [ this is what's used on the slide:]
+
+def pattern <~> data do
+  case Match.a(data, pattern) do
+    {:match, bindings} -> bindings
+    {:no_match, _} -> raise MatchA.MatchError, "no match!"
+  end
+end
+
+defprotocol Match do
+  def a(data, pattern)
+end
+
+defimpl Match, for: List do
+  def a(list, pattern) do
+    ...
+  end
+end
+
+# so remember our pattern syntax:
+
+[var(:thing)] = [1]
+
+# Well var(:thing) right now returns this:
+
+{:var, :thing}
+
+# So with that in mind we could implement the simplest pattern match case
+# like so:
+defimpl Match, for: List do
+  def a([item] = _list, [{:var, name}]) do
+    %{ name => a}
+  end
+end
+
+# Now show the pipeline Zipper getting wrapped in a struct:
+
+%PipeLine{
+  ...
+  steps: {[step_1, step_2], []}
+}
+
+# To this:
+
+%PipeLine{
+  ...
+  steps: %Zipper{zip: {[step_1, step_2], []}}
+}
+
+# Now we can imagine implementing the same for the zipper!
 defimpl Match, for: Zipper do
   def a(zipper, pattern) do
     ...
   end
 end
 
-defimpl Match, for: List do
-  def a(zipper, pattern) do
-    ...
+# Something like this.
+defimpl Match, for: Zipper do
+  def a(%{zip: {[item], []}}, [{:var, name}]) do
+    %{name => item}
+  end
+
+  def a(%{zip: {[], [item]}}, [{:var, name}]) do
+    %{name => item}
   end
 end
+
+# NOW THOUGH.
+# We've implemented pattern matching with pattern matching.
+# 👌
+
+# But we've inadvertently run into the exact problem the library
+# has been written to solve. To demonstrate that let's imagine
+# we try to extend this whole idea to allow user defined patterns.
+
+# To do that the first thing we need to do is make MOAR PROTOCOLS
+# we are going to treat each pattern as its own protocol that can be implemented
+# by each data type for itself.... So when we call
+
+Match.a(data, pattern)
+
+# What we actually do is something like this
+
+# In fact should we first dispatch on the pattern THEN on the data?
+def a(pattern, data) do
+  Pattern.for(data, pattern)
+end
+
+# This is a pattern that utilizes other patterns. That means
+# that any pattern can be used inside any other one. So we need to dispatch
+
+
+list(var(:current))
+
+defprotocol ListPattern do
+  def match(nested_pattern, data, pattern_index)
+end
+
+
+var(:current_step)
+# returns
+{:var, :current_step}
+
+var(:current_step)
+# returns
+%Var{name: :current_step}
+
+
+list([var(:thing)]) =>
+  %ListPattern{patterns: [var(:thing)]} =>
+    %ListPattern{patterns: [%Var{name: :thing}]}
+
+
+PipeLine.pattern(%{steps: [var(:current), rest()] }) = PipeLine.add_steps(PipeLine.new(1), [& &1])
+
+
+
+# =============== Extensible Patterns leggoooooo ===========================
+
+# 1. Make the patterns Structs.
+
+[var(:current_step), rest(var(:rest))]
+# becomes
+list([var(:current_step), rest(var(:rest))])
+# which is:
+%ListPattern{
+  patterns: [
+    %Var{name: :current_step},
+    %Rest{binding: %Var{name: :rest}}
+  ]
+}
+
+# 2. Change the protocol.
+
+defprotocol Match do
+  def a(pattern, data)
+end
+
+# 3. Implement it for a ListPattern:
+
+defimpl Match, for: ListPattern do
+  def a(%ListPattern{patterns: patterns}, data) do
+    Enum.reduce_while(patterns, {0, %{}}, fn pattern, {index, bindings} ->
+      case ListPattern.match(pattern, data, bindings, index) do
+        {:match, bound} -> {:cont, {index + 1, bound}
+        :no_match -> {:halt, {:no_match, bindings}}
+      end
+    end)
+  end
+end
+
+# Add the ListPattern protocol. But wait. We want to use the same name 😱
+defprotocol ListPattern do
+  def match(nested_pattern, data, bindings, pattern_index)
+end
+
+# Well never mind. We can just do this.
+defprotocol ListPattern do
+  defstruct [:patterns]
+  def match(nested_pattern, data, bindings, pattern_index)
+end
+
+# This means we _know_ we are a variable in a list. Now we can implement it for
+# any future pattern - meaning any list can have a pattern in it.
+defimpl ListPattern, for: Var do
+  def match(%Var{name: var_name}, data, index) do
+    # At this point we know for certainty that we are a variable in a list pattern
+    # so now we need to figure out what data type we are matching.... we do that by
+    # CALLING ANOTHER PROTOCOL. The reason is because the sub pattern in the list
+    # in our case the variable needs different information depending on WHERE is is
+    # If it was in variable_in_a_map then we'd need to know that the key the pattern was
+    # under exists.
+    case VariableInAList.match(data, index) do
+      {:ok, value} -> {:match, value}
+      :no_match -> :no_match
+    end
+  end
+end
+
+defimpl ListPattern, for: Var do
+  def match(%Var{name: var_name}, data, index) do
+    case VariableInAList.match(data, index) do
+      {:ok, value} -> {:match, value}
+      :no_match -> :no_match
+    end
+  end
+end
+
+
+# We need to breakdown why we do this. the variable isn't really a variable, it's a
+# variable in a list pattern. Now this could be different from a variable_in_a_map
+# pattern for example, where the key is the context, not the index.... (though they are both keys really meh)
+defprotocol VariableInAList do
+  def match(data, index)
+end
+
+# Now finally we know all the things. We know we are a variable pattern that appeared
+# in a list, that is matching against a list.
+defimpl VariableInAList, for: List do
+  def match(list, index) do
+    case Enum.fetch(list, index) do
+      {:ok, value} -> {:ok, value}
+      :error -> :no_match
+    end
+  end
+end
+
+defimpl VariableInAList, for: Zipper do
+  def match(%{zip: {left, right}}, index) do
+    list = Enum.reverse(right) ++ left
+    case Enum.fetch(list, index) do
+      {:ok, value} -> {:ok, value}
+      :error -> :no_match
+    end
+  end
+end
+
+
+defprotocol RestInAList do
+  def match(list, bindings, index)
+end
+
+defimpl ListPattern, for: Rest do
+  # Right do we know the data is a list? Not yet no.
+  def match(%{rest: %Var{var_name}, data, bindings_so_far, index) do
+    # Ergh vom. Rest is actually higher order too. So it calls
+    # VariableInRestInMap
+    # or VariableInRestInList which no. we need to recur somewhere or something.
+
+    # we want extensible
+    RestInAList.match(data, bindings_so_far, index)
+  end
+end
+
+defimpl RestInAList, for: List do
+  def match(list, bindings, index) do
+    # we are on index means to get rest we drop everything before then
+    amount_to_drop = length(list) - index - 2
+    rest = Enum.drop(list, amount_to_drop)
+
+  end
+end
+
+# I think effectively what we've done is make a graph where each of the lines between the nodes is a protocol
+# MEANING at each point you can add more arrows to other implementations. Show this if we can.
+
+# MAtch a pattern
+   # |
+# List Pattern
+#    |
+#  Variable
+   # |
+# Access data and see if
+
+
+
+# ...stuff
+
+# So we started out writing a library that was trying to bring some indirection to
+# pattern matching. The idea was doing that would make us resilient to changes in
+# the data-structures being pattern matched against.... We implemented that using
+# pattern matching. Then changed the implementation of the data we were pattern matching
+# against - and ran smack bang into the middle of the problem we were attempting to solve!
+
+# Which is amusing.
+
+
+# But let's recap. Right now we've sketched out _a_ way to bring some indirection to pattern
+# matching. This has served as an illustration of what doing that might bring us. So
+# what has it brought us?
+
+# Originally we said what we liked about PM was:
+# 1. A picture is worth 1,000 functions (what does this mean? same as 2? less surface area?)
+# 2. Construction and destruction are the same (syntax)
+# 3. You understand what's _actually_ happening. (peek past the abstraction)**
+
+# Well in our implementation the syntax is not the same, so 2 isn't really try anymore
+# We also don't know what's _really_ happening because the match is abstract now.
+
+# So we are left with 1.
+
+    # Now it's possible we can bring back 2. with some macro magic
+    # [we could wave hands here or we can try for user defined patterns which would]
+    # [allow pipeline pattern] I guess built in types are hand wave-y macro magic but
+    # for custom ones you'd want to create your own syntax.
+
+# But I think if we want to ask the question 'can PM be good in the abstract' we have
+# to ask the question - is there value in abstract pictures? In pictures of the gist
+# of what is happening?
+
+# This is a question that I can't answer for you, but I'd love to hear your thoughts.
+
+# End on Jose post because it's funny.
+
+# **for me at least getting an example that you can then think about generalising is
+# simpler than trying to go the other way - thinking about the abstraction first
+
+defprotocol Last do
+  defstruct []
+  @fallback_to_any true
+  def match(data)
+end
+
+defimpl Last, for: List do
+  def match(list) do
+    # this gets the value out but we need to bind it to a variable really.
+    List.last(list)
+  end
+end
+
+defimpl Last, for: Any do
+  def match(data) do
+    raise "Invalid match syntax - Last not implemented for #{inspect(data)}"
+  end
+end
+
+# Might not need this protocol as we can just use normal polymorphism
+# as we don't need it to be extensible.
+# defprotocol Pattern do
+#   def evaluate(pattern, data)
+# end
+
+# defimpl Pattern, for: Last do
+#   def evaluate(%struct{}, pattern) do
+#     struct.match(pattern)
+#   end
+# end
+
+# named patterns are just really grouping patterns together
+# to make smaller ones, and also to provide one place to update patterns
+# if the implementation of them changes. That's the value they provide.
+
+defimpl Match, for: List do
+  def a([item] = list, [%{__struct__: pattern}]) do
+    # Pattern has to determine how to find the value? Or determine like whether it
+    # binds a var or not?
+    pattern.match(list)
+    %{ name => }
+  end
+end
+
+
+# patterns that incorporate other patterns need to know about them in order to
+# be able to do stuff with them. This would require that each pattern implement
+# a ListXXX protocol, where the XXX is the pattern. So for example
+# ListPipeLine pattern would be the "this is a PipeLine in a List patern". When there
+# we woule be able to figure out what to do. We'd need the corresponding element from
+# the point we are at in the list.
+
+# The problem then comes for things like "rest" which could apply to many higher order
+# patterns... There we want to get a different thing from
+
+# maybe it works if we pass through the pattern and the current bindings. We sacrafice
+# a lot of ease of understanding to get re-use etc.
+# But that way the pattern can decide what to do.
+# Do we also need context of like "where we are"
+
+# Or can we just take on the chin that implementations of pattterns that use
+# other patterns will require enumerating all the patterns it wants to be able to handle
+# It is not after all an unreasonable stipulation - but it does mean you can't really
+# implement list pattern for everyone as you'll likely miss a pattern they need.
+
+# I do feel like there is a way though.
+
+
+
+
+# And also how do we know the
+
+# imagine a list of pipeline patterns.
+# Can we define a "PipeLine" pattern so that we can get head and next or whatever.
+# The idea would be that brings the pattern and creation syntaxes into closer alignment
+#
+
+# pipeline pattern idea. So the things that you want from the pipeline are
+# current step, next step and previous step (if available). lets do the first two for now
+
+%{current_step: current} =
+  current_step(var(:current)) <~> PipeLine.add_steps(PipeLine.new(1), [step_1])
+
+bindings = %PipeLine{
+  current_step: current
+} <~> PipeLine.add_steps(PipeLine.new(1), [step_1])
+
+# Like the above could be alright but it's not really a picture. we have just gotten back
+# to a name
+
+
+# Oh wait this really means the pattern can be __ANYTHING__ shit. Also what's a good picture
+# for current step?
+bindings = [var(:current) | _] <~> PipeLine.add_steps(PipeLine.new(1), [step_1])
+
+[_, var(:nest_step)] <~> PipeLine.add_steps(...)
+
+[_previous, var(:current), _next] <~> PipeLine.add_steps
+
+
+defimpl Match, for PipeLine do
+  def a(%{steps: {[current | _], _}}, [{:var, name} | _]) do
+    %{name => current}
+  end
+
+  def a(%{steps: [current | _]}, [{:var, name} | _]) do
+    %{name => current}
+  end
+end
+
+# current really means first
+
+#
+
+# the idea with the above is that the acutal pipeline can be reversible or not.
+
+
+
+current_step(wildcard())
+
+Pattern.evaluate(%Last{}, [1,2])
+
+
+
+
+
+
+
+
+# Protocol does mean one version though per data type. So we could imagine the last on a map
+# as ordering the k/v pairs by key and then selecting the last one, or by ordering by value
+# with this approach you'd have to pick one and that would be it. You'd have to define more
+# patterns like LastByKey or something. Which by that point you may as well define an ADT
+# and have a functional interface to it. I guess the litmus test of a pattern is can it
+# apply to more than one concrete data type. If so then good if not it's suspicious.
+Pattern.evaluate(%Last{}, %{a: 1, b: 2})
+
+# <!-- We should use Rest as the example?  -->
+
+# in the list impl, something like:
+rest = %{ %Rest{} | context: %{index: index} }
+
+case Pattern.match(rest, list) do
+  :no_match -> {:halt, :no_match}
+  value -> {:cont, {index + 1, Map.put(bindings, var_name, value)}}
+end
+
+# in the map something like:
+
+rest = %{ %Rest{} | context: %{taken_keys: keys} }
+
+case Pattern.match(rest, map) do
+  :no_match -> {:halt, :no_match}
+  value -> {:cont, {index + 1, Map.put(bindings, var_name, value)}}
+end
+
+defprotocol Rest do
+  # this allows data to be passed through to the implementation
+  # for example the index where "rest" begins, or in a map the
+  # keys already selected I guess.
+  defstruct [:binding, :context]
+  @fallback_to_any true
+  def match(data, context)
+end
+
+defimpl Rest, for: List do
+  def match(list, %Rest{context: %{index: index}}) do
+    out_of_bounds = make_ref()
+
+    case Enum.at(list, index, out_of_bounds) do
+      ^out_of_bounds -> :no_match
+      value -> value
+    end
+  end
+end
+
+defimpl Rest, for: Map do
+  # assumes taken keys have already not blown up - ie we match so far.
+  # if we bind to a wildcard we ignore anyway...
+  def match(map, %Rest{binding: %Wildcard{}, context: %{taken_keys: taken}}) do
+    Map.drop(map, taken)
+  end
+end
+
+
+# so for a map
+Rest.match(%{a: 1, b: 2}, map([a: var(:a), rest(var(:rest))])
+%{a: 1, rest: %{b: 2} }
+
+# but here's the real problem those patterns that aggregate other patterns need to know
+# about all of the patterns they aggregate because otherwise they wont know what else to
+# pass to the pattern to let it do its thing.
+
+# So now we need to get to
+
+# The idea is this says how to treat rest when it's inside a list.
+
+# All the stuff you _could_ need is the original data being matched, the
+# bindings so far and "where" we are in the list.
+defimpl InsideListPattern, for: Rest do
+  def for(rest_pattern, data) do
+    # This means Rest was the 2nd pattern in the list of patterns and no bindings where
+    # made yet - implying the first pattern was wildcard or similar
+    Rest.match(list, %{ rest_pattern | bindings_so_far: %{}, list_index: 1})
+  end
+end
+
+InsideListPattern.for(%Rest{}, [1,2,3])
+
+
+# The outer pattern - Zip
+# the inner pattern - Types of element
+# The data being matched - Operation
+
+defimpl MapPatern, for: Map do
+  def match(map, %MapPatern{keys: keys}) do
+    # keys is a list of bindings
+    Enum.reduce(keys, %{}, fn
+      {key, %pattern{}}, bindings ->
+
+      # we have to know what pattern it is to know what context to pass through.
+      # because we are here we _know_ we are a map matching.
+
+      # we need to be like RestMap
+      %pattern{}, bindings ->
+        pattern.match(map, _taken_keys = Map.keys(bindings))
+    end)
+  end
+end
+
+defimpl Rest, for: Any do
+  def match(data, _) do
+    raise "Invalid match syntax - Rest not implemented for #{inspect(data)}"
+  end
+end
+
+defprotocol Pattern do
+  def evaluate(pattern, data)
+end
+
+defimpl Pattern, for: Rest do
+  def evaluate(%struct{} = pattern, data) do
+    # passing this in second allows us to add free vars to the mix and use them in the fn
+    # essentially that's why you might want to add this protocol - then each pattern
+    # can add its own context etc to the pattern.
+    struct.match(data, pattern)
+  end
+end
+
+
+
+# This would basically return %{a: [1,2]} from a destructure
+Pattern.evaluate(list([rest(variable(:a))]), [1,2])
+
+
 
 # Then we can implement it for our zipper too.
 
