@@ -1022,6 +1022,10 @@ defimpl Match, for: ListPattern do
         :no_match -> {:halt, {:no_match, bindings}}
       end
     end)
+    |> case do
+      {:no_match, _} -> raise "match error!"
+      {_index, bindings} -> {:match, bindings}
+    end
   end
 end
 
@@ -1056,7 +1060,7 @@ end
 defimpl ListPattern, for: Var do
   def match(%Var{name: var_name}, data, binding, index) do
     case VariableInAList.match(data, index) do
-      {:ok, value} -> {:match, value}
+      {:ok, value} -> {:match, Map.put(binding, var_name, value)}
       :no_match -> :no_match
     end
   end

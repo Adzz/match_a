@@ -491,3 +491,6 @@ what pattern matching does.
   # an executor that attempts a match and if it doesn't match continues if it does it stops. Or
   # vice versa...
 
+You can't Pm on an abstract idea yet, so when you do PM you need to know you are ruining your chances of later changing that implementation. The act of making a pattern match
+like calcifies the data... makes it solid unchangeable.... or something.
+

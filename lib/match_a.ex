@@ -70,6 +70,8 @@ defimpl VariableInAList, for: Zipper do
   end
 end
 
+
+
 # erlang :arrays are tuples.. Probably until they are not or some shit but let's go with it...
 defimpl Match, for: Tuple do
   # :array.set(17, true, :array.new(5))
@@ -182,7 +184,7 @@ defmodule MatchA do
   end
 
   def pattern <~> data do
-    case MatchA.destructure(pattern, data) do
+    case Match.a(pattern, data) do
       {:match, bindings} -> bindings
       {:no_match, _} -> raise MatchA.MatchError, "no match!"
     end
@@ -220,10 +222,10 @@ defmodule MatchA do
     end
   end
 
-  def var(name), do: {:variable, name}
+  def var(name), do: %Var{name: name}
   # a binding can be wildcard() or variable()
   def rest(binding \\ wildcard()), do: {:rest, binding}
   def empty(), do: :empty
   def wildcard(), do: :wildcard
-  # def list(items), do: {:list, items}
+  def list(patterns), do: %ListPattern{patterns: patterns}
 end
