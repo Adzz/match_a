@@ -1004,6 +1004,8 @@ list([var(:current_step), rest(var(:rest))])
   ]
 }
 
+pattern = %ListPattern{patterns: [%Var{name: :current_step} ]}
+
 # 2. Change the protocol.
 
 defprotocol Match do
@@ -1016,7 +1018,7 @@ defimpl Match, for: ListPattern do
   def a(%ListPattern{patterns: patterns}, data) do
     Enum.reduce_while(patterns, {0, %{}}, fn pattern, {index, bindings} ->
       case ListPattern.match(pattern, data, bindings, index) do
-        {:match, bound} -> {:cont, {index + 1, bound}
+        {:match, bound} -> {:cont, {index + 1, bound}}
         :no_match -> {:halt, {:no_match, bindings}}
       end
     end)
@@ -1052,7 +1054,7 @@ defimpl ListPattern, for: Var do
 end
 
 defimpl ListPattern, for: Var do
-  def match(%Var{name: var_name}, data, index) do
+  def match(%Var{name: var_name}, data, binding, index) do
     case VariableInAList.match(data, index) do
       {:ok, value} -> {:match, value}
       :no_match -> :no_match
@@ -1088,7 +1090,6 @@ defimpl VariableInAList, for: Zipper do
     end
   end
 end
-
 
 defprotocol RestInAList do
   def match(list, bindings, index)

@@ -10,6 +10,66 @@ defprotocol Match do
   def a(data, pattern)
 end
 
+defprotocol ListPattern do
+  defstruct [:patterns]
+  def match(nested_pattern, data, bindings, pattern_index)
+end
+
+defprotocol VariableInAList do
+  def match(data, index)
+end
+
+defmodule Zipper do
+  defstruct [:zip]
+end
+
+defmodule Var do
+  defstruct [:name]
+end
+# Need to implement this.
+defimpl Match, for: ListPattern do
+  def a(%ListPattern{patterns: patterns}, data) do
+    Enum.reduce_while(patterns, {0, %{}}, fn pattern, {index, bindings} ->
+      case ListPattern.match(pattern, data, bindings, index) do
+        {:match, bound} -> {:cont, {index + 1, bound}}
+        :no_match -> {:halt, {:no_match, bindings}}
+      end
+    end)
+    |> case do
+      {:no_match, _} -> raise "match error!"
+      {_index, bindings} -> {:match, bindings}
+    end
+  end
+end
+
+defimpl ListPattern, for: Var do
+  def match(%Var{name: var_name}, data, binding, index) do
+    case VariableInAList.match(data, index) do
+      {:ok, value} -> {:match, Map.put(binding, var_name, value)}
+      :no_match -> :no_match
+    end
+  end
+end
+
+defimpl VariableInAList, for: List do
+  def match(list, index) do
+    case Enum.fetch(list, index) do
+      {:ok, value} -> {:ok, value}
+      :error -> :no_match
+    end
+  end
+end
+
+defimpl VariableInAList, for: Zipper do
+  def match(%{zip: {left, right}}, index) do
+    list = Enum.reverse(right) ++ left
+    case Enum.fetch(list, index) do
+      {:ok, value} -> {:ok, value}
+      :error -> :no_match
+    end
+  end
+end
+
 # erlang :arrays are tuples.. Probably until they are not or some shit but let's go with it...
 defimpl Match, for: Tuple do
   # :array.set(17, true, :array.new(5))
@@ -20,10 +80,6 @@ defimpl Match, for: Tuple do
   def a({:array, _, _, _, _}, _pattern_case) do
     :no_match
   end
-end
-
-defimpl Match, for: Zipper do
-  def a(...)
 end
 
 defimpl Match, for: List do
