@@ -161,6 +161,29 @@ defimpl Match, for: List do
   end
 end
 
+defprotocol Empty do
+  defstruct []
+  @fallback_to_any true
+  def match(data)
+end
+
+defimpl Match, for: Empty do
+  def a(_empty, data) do
+    case Empty.match(data) do
+      {:match, _} -> {:match, %{}}
+      :no_match -> raise "No Match!"
+    end
+  end
+end
+
+defimpl Empty, for: List do
+  def match([]), do: {:match, %{}}
+  def match(_), do: :no_match
+end
+
+defimpl Empty, for: Any do
+  def match(_), do: raise "Invalid Pattern Syntax"
+end
 defmodule MatchA do
   @moduledoc """
   Documentation for `MatchA`.

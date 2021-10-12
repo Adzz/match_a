@@ -1085,6 +1085,10 @@ defimpl VariableInAList, for: List do
   end
 end
 
+%{a: name} = map
+%{a: var(:name)} = map
+
+
 defimpl VariableInAList, for: Zipper do
   def match(%{zip: {left, right}}, index) do
     list = Enum.reverse(right) ++ left
@@ -1094,6 +1098,64 @@ defimpl VariableInAList, for: Zipper do
     end
   end
 end
+
+
+# So that's great we are back to where we were... But now can we define new pattterns?
+# Let's try a pipeline. First we need to define a pattern.
+
+# I guess pipeline would be ideal but it's not the best example. We could implement
+# like JS spread operator? Or something like that...
+
+defprotocol Empty do
+  defstruct []
+  @fallback_to_any true
+  def match(data)
+end
+
+defimpl Match, for: Empty do
+  def a(_empty, data) do
+    case Empty.match(data) do
+      {:match, _} -> {:match, %{}}
+      :no_match -> raise "No Match!"
+    end
+  end
+end
+
+defimpl Empty, for: List do
+  def match([]), do: {:match, %{}}
+  def match([]), do: :no_match
+end
+
+defimpl Empty, for: Map do
+  def match(map) do
+    case map_size(map) == 0 do
+      true -> {:match, %{}}
+      false -> :no_match
+    end
+  end
+end
+
+defimpl Empty, for: Any do
+  def match(_), do: raise "Invalid Pattern Syntax"
+end
+
+
+# What is a good picture for "current_step"... or "next_step" ???
+#
+
+# like how will we know what we actually want here?
+pipeline({_previous, current, _next})
+
+# There are maybe tricky things we can do with "error'd" and not. But maybe it's as
+# simple as having list matches for it?
+
+list([var(:current_step), rest()]) <~> PipeLine.new(1)
+
+
+vars = list([var(:thing)]) <~> [1, 2]
+
+
+# ===================================================
 
 defprotocol RestInAList do
   def match(list, bindings, index)
@@ -1286,7 +1348,6 @@ end
 
 # current really means first
 
-#
 
 # the idea with the above is that the acutal pipeline can be reversible or not.
 
