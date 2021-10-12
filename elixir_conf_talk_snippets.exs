@@ -903,7 +903,7 @@ end
 # like so:
 defimpl Match, for: List do
   def a([item] = _list, [{:var, name}]) do
-    %{ name => a}
+    %{ name => item}
   end
 end
 
@@ -1014,6 +1014,32 @@ end
 
 # 3. Implement it for a ListPattern:
 
+# This bit is tough I think you would actually just recur??
+
+defimpl Match, for: ListPattern do
+  def a(%ListPattern{patterns: patterns}, data) do
+    Enum.reduce_while(patterns, {0, %{}}, fn pattern, {index, bindings} ->
+      # By recurring we stipulate that all patterns are top level. So there is no way
+      # to enforce that certain patterns can only exist inside lists or higher order patterns
+      # for example - like Rest.. Think about this later, but we'd have to hack off the data
+      # we have already seen and send the rest of it. I don't think there is a pattern that
+      # would need to look back, so we could slice up to the index and then call the top
+      # level. BUT the problem with that is we don't actually know what the data type of
+      # the data we are matching on is yet! So maybe there is a way to get that with
+      # not swapping the Match protocol around.... But that requires more thought than
+      # I have time for right now........!
+      case Match.a(pattern, data) do
+        {:match, bound} -> {:cont, {index + 1, bound}}
+        :no_match -> {:halt, {:no_match, bindings}}
+      end
+    end)
+    |> case do
+      {:no_match, _} -> raise "match error!"
+      {_index, bindings} -> {:match, bindings}
+    end
+  end
+end
+
 defimpl Match, for: ListPattern do
   def a(%ListPattern{patterns: patterns}, data) do
     Enum.reduce_while(patterns, {0, %{}}, fn pattern, {index, bindings} ->
@@ -1028,6 +1054,37 @@ defimpl Match, for: ListPattern do
     end
   end
 end
+
+# The problem:
+
+# We have "top level matches" like Var, ListPattern, Map Pattern...
+
+a = 1
+var(:a) <~> 1
+
+[a, b] = [1, 2]
+[var(:b), var(:b)] <~> [1, 2]
+
+# Variable is different in each case here because in the list case the index of the pattern
+# turns out to be relevant. Take this example:
+
+[a, b] = [1]
+
+# This doesn't match because there is no data at b's index...
+
+# So a var in a list pattern is different from a var at the top level. So if we are to
+# allow extensible user defined patterns, we need to also allow for them to appear in
+# lists, maps - ie in any kind of higher order pattern (one that has patterns inside it)
+
+# So the outline of what we are attempting is the following:
+
+# At the top level allow for new patterns to be implementable.
+# Allow for new as yet unwritten patterns to be useable inside any existing higher order patterns
+  # this means we should be able to put any pattern inside a list pattern.
+#
+
+
+
 
 # Add the ListPattern protocol. But wait. We want to use the same name 😱
 defprotocol ListPattern do
